@@ -66,18 +66,18 @@ class utils():
         for _ in range(num_epos):
             f=open('/home_local/htsungy/corpus/open_subtitles.txt','r')
             data=f.readlines()    
+            random.shuffle(data)
             batch_s=[];batch_t=[];
                  
             for i in range(len(data)):
-                if i%2 == 0:
-                    s_sent,s_l = self.sent2id(data[i],1)
-                    t_sent,t_l = self.sent2id(data[i+1],1)
-                    if s_l<=30 and t_l<=30 and random.random()<0.8:
-                        batch_s.append(s_sent)
-                        batch_t.append(t_sent)
-                        if len(batch_s)==self.batch_size:
-                            yield batch_s,batch_t
-                            batch_s=[];batch_t=[];
+                s_sent,s_l = self.sent2id(data[i],1)
+                t_sent,t_l = self.sent2id(data[i],1)
+                if s_l<=30 and t_l<=30 and random.random()<0.8:
+                    batch_s.append(s_sent)
+                    batch_t.append(t_sent)
+                    if len(batch_s)==self.batch_size:
+                        yield batch_s,batch_t
+                        batch_s=[];batch_t=[];
 
 
                          
