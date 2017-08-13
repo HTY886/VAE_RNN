@@ -81,9 +81,28 @@ class vrnn():
             encoder_state_h = tf.concat((state_fw.h, state_bw.h), 1)
             self.encoder_state_c=encoder_state_c
             self.encoder_state_h=encoder_state_h
+        
+        with tf.variable_scope("sample") as scope:
+        
+            w_mean = weight_variable([self.latent_dim*2,self.latent_dim*2],0.001)
+            b_mean = bias_variable([self.latent_dim*2])
+            scope.reuse_variables()
+            b_mean_matrix = [b_mean] * self.batch_size
             
-            encoder_state = tf.contrib.rnn.LSTMStateTuple(c=encoder_state_c, h=encoder_state_h) 
-    
+            w_logvar = weight_variable([self.latent_dim*2,self.latent_dim*2],0.001)
+            b_logvar = bias_variable([self.latent_dim*2])
+            scope.reuse_variables()
+            b_logvar_matrix = [b_logvar] * self.batch_size
+            
+            mean = tf.matmul(encoder_state_h,w_mean) + b_mean
+            logvar = tf.matmul(encoder_state_h,w_logvar) + b_logvar
+            var = tf.exp( 0.5 * logvar)
+            noise = tf.random_normal(tf.shape(var))
+            sampled_encoder_state_h = mean + tf.multiply(var,noise)
+            
+                
+        encoder_state = tf.contrib.rnn.LSTMStateTuple(c=encoder_state_c, h=encoder_state_h) 
+        encoder_state_test = tf.contrib.rnn.LSTMStateTuple(c=encoder_state_c, h=encoder_state_h)
         decoder_inputs = batch_to_time_major(train_decoder_sentence_embedded ,self.sequence_length+1)  
         
         with tf.variable_scope("decoder") as scope:
@@ -123,7 +142,7 @@ class vrnn():
             scope.reuse_variables()
             test_decoder_output,test_decoder_state = tf.contrib.legacy_seq2seq.attention_decoder(
                 decoder_inputs = decoder_inputs,
-                initial_state = encoder_state,
+                initial_state = encoder_state_test,
                 attention_states = encoder_outputs,
                 cell = cell,
                 output_size = self.vocab_size,
@@ -140,14 +159,23 @@ class vrnn():
         
     
         with tf.variable_scope("loss") as scope:
+        
+        
+            kl_loss_batch = tf.reduce_sum( -0.5 * (logvar - tf.square(mean) - tf.exp(logvar) + 1.0) , 1)
+            kl_loss = tf.reduce_mean(kl_loss_batch, 0) #mean of kl_cost over batches
+            
             targets = batch_to_time_major(train_decoder_targets,self.sequence_length+1)
             loss_weights = [tf.ones([self.batch_size],dtype=tf.float32) for _ in range(self.sequence_length+1)]    #the weight at each time step
             self.loss = tf.contrib.legacy_seq2seq.sequence_loss(
                 logits = train_decoder_output, 
                 targets = targets,
-                weights = loss_weights)
+                weights = loss_weights) #+ kl_loss
             #self.train_op = tf.train.RMSPropOptimizer(0.001).minimize(self.loss)
-            self.train_op = tf.train.AdamOptimizer().minimize(self.loss)
+            op_func = tf.train.AdamOptimizer()
+            tvars = tf.trainable_variables()
+            self.gradient = tf.gradients(self.loss, tvars) 
+            capped_grads, _ = tf.clip_by_global_norm(self.gradient, 3)
+            self.train_op = op_func.apply_gradients(zip(capped_grads, tvars))
             tf.summary.scalar('total_loss', self.loss)
     
     
