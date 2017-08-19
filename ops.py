@@ -6,8 +6,8 @@ def batch_to_time_major(inputs,split_size):
     return inputs
     
     
-def weight_variable(shape):
-    initial = tf.truncated_normal(shape, stddev=0.001)
+def weight_variable(shape,std_dev):
+    initial = tf.truncated_normal(shape, stddev=std_dev)
     return tf.Variable(initial)
 
 

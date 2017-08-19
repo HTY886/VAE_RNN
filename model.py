@@ -13,8 +13,7 @@ class vrnn():
     def __init__(self,args,sess):
         self.sess = sess
         self.word_embedding_dim = 300
-        self.drop_rate = 0.05
-        self.num_epochs = 10000
+        self.num_epochs = 100
         self.num_steps = args.num_steps
         self.latent_dim = args.latent_dim
         self.sequence_length = args.sequence_length
@@ -36,6 +35,7 @@ class vrnn():
  
     def build_graph(self):
         print('starting building graph')
+        
         with tf.variable_scope("input") as scope:
             self.encoder_inputs = tf.placeholder(dtype=tf.int32, shape=(self.batch_size, self.sequence_length))
             self.train_decoder_sentence = tf.placeholder(dtype=tf.int32, shape=(self.batch_size, self.sequence_length))
@@ -44,8 +44,9 @@ class vrnn():
     
             BOS_slice = tf.ones([self.batch_size, 1], dtype=tf.int32)*self.BOS
             EOS_slice = tf.ones([self.batch_size, 1], dtype=tf.int32)*self.EOS
-            train_decoder_targets = tf.concat([self.train_decoder_targets,EOS_slice],axis=1)
+            train_decoder_targets = tf.concat([self.train_decoder_targets,EOS_slice],axis=1)            
             train_decoder_sentence = tf.concat([BOS_slice,self.train_decoder_sentence],axis=1)
+          
     
         with tf.variable_scope("embedding") as scope:
             init = tf.contrib.layers.xavier_initializer()
@@ -80,20 +81,28 @@ class vrnn():
             encoder_state_h = tf.concat((state_fw.h, state_bw.h), 1)
             self.encoder_state_c=encoder_state_c
             self.encoder_state_h=encoder_state_h
+        
+        with tf.variable_scope("sample") as scope:
+        
+            w_mean = weight_variable([self.latent_dim*2,self.latent_dim*2],0.001)
+            b_mean = bias_variable([self.latent_dim*2])
+            scope.reuse_variables()
+            b_mean_matrix = [b_mean] * self.batch_size
             
+            w_logvar = weight_variable([self.latent_dim*2,self.latent_dim*2],0.001)
+            b_logvar = bias_variable([self.latent_dim*2])
+            scope.reuse_variables()
+            b_logvar_matrix = [b_logvar] * self.batch_size
             
-            w_mu = weight_variable([self.latent_dim*2, self.latent_dim*2])
-            b_mu = bias_variable([self.latent_dim*2])
-            w_sigma = weight_variable([self.latent_dim*2, self.latent_dim*2])
-            b_sigma = bias_variable([self.latent_dim*2])
-            mu = tf.matmul(encoder_state_h, w_mu) + b_mu  
-            logsigma = tf.matmul(encoder_state_h, w_sigma) + b_sigma  
-            sigma = tf.exp(logsigma)
-    
-            encoder_state_h_hat = mu + sigma * tf.random_normal([self.batch_size, self.latent_dim*2])
+            mean = tf.matmul(encoder_state_h,w_mean) + b_mean
+            logvar = tf.matmul(encoder_state_h,w_logvar) + b_logvar
+            var = tf.exp( 0.5 * logvar)
+            noise = tf.random_normal(tf.shape(var))
+            sampled_encoder_state_h = mean + tf.multiply(var,noise)
             
-            encoder_state = tf.contrib.rnn.LSTMStateTuple(c=encoder_state_c, h=encoder_state_h_hat) 
-    
+                
+        encoder_state = tf.contrib.rnn.LSTMStateTuple(c=encoder_state_c, h=sampled_encoder_state_h) 
+        encoder_state_test = tf.contrib.rnn.LSTMStateTuple(c=encoder_state_c, h=encoder_state_h)
         decoder_inputs = batch_to_time_major(train_decoder_sentence_embedded ,self.sequence_length+1)  
         
         with tf.variable_scope("decoder") as scope:
@@ -148,30 +157,28 @@ class vrnn():
     
             self.test_pred=test_pred
         
-        #seq2seq
-        #train_decoder_output,test_pred = peeky_seq2seq(
-        #   encoder_inputs=encoder_inputs_embedded,
-        #    decoder_inputs=train_decoder_sentence_embedded,
-        #    peeky_code=train_decoder_character_embedded,
-        #    word_embedding_matrix=word_embedding_matrix,
-        #    vocab_size=self.vocab_size,
-        #    sequence_length=self.sequence_length,
-        #    latent_dim=self.latent_dim,
-        #    encoder_length=self.lstm_length,s
-        #    sample_rate=self.sample_rate,
-        #    peeky_code_dim=self.character_embedding_dim
-        #)
-        #self.test_pred = test_pred
     
         with tf.variable_scope("loss") as scope:
+        
+        
+            kl_loss_batch = tf.reduce_sum( -0.5 * (logvar - tf.square(mean) - tf.exp(logvar) + 1.0) , 1)
+            kl_loss = tf.reduce_mean(kl_loss_batch, 0) #mean of kl_cost over batches
+            
             targets = batch_to_time_major(train_decoder_targets,self.sequence_length+1)
             loss_weights = [tf.ones([self.batch_size],dtype=tf.float32) for _ in range(self.sequence_length+1)]    #the weight at each time step
             self.loss = tf.contrib.legacy_seq2seq.sequence_loss(
                 logits = train_decoder_output, 
                 targets = targets,
-                weights = loss_weights)
+                weights = loss_weights) + kl_loss
             #self.train_op = tf.train.RMSPropOptimizer(0.001).minimize(self.loss)
             self.train_op = tf.train.AdamOptimizer().minimize(self.loss)
+            """
+            op_func = tf.train.AdamOptimizer()
+            tvars = tf.trainable_variables()
+            self.gradient = tf.gradients(self.loss, tvars) 
+            capped_grads, _ = tf.clip_by_global_norm(self.gradient, 8)
+            self.train_op = op_func.apply_gradients(zip(capped_grads, tvars))
+            """
             tf.summary.scalar('total_loss', self.loss)
     
     
@@ -192,8 +199,6 @@ class vrnn():
             step += 1
             t_d = t
             sample_rate = max(0.5,0.9-(step/100)*0.001)
-            #self.drop_rate = min((step/100)*0.001,0.7)
-            #t_d = self.utils.word_drop_out(t,self.drop_rate)
             feed_dict = {
                 self.encoder_inputs:s,\
                 self.train_decoder_sentence:t_d,\
@@ -201,7 +206,6 @@ class vrnn():
                 self.sample_rate:sample_rate
             }
             _,loss = self.sess.run([self.train_op, self.loss],feed_dict)
-            #print('r: ',r_num , sample_rate , ' loss: ' , loss)
             cur_loss += loss
             if step%(summary_step)==0:
                 print('{step}: total_loss: {loss}'.format(step=step,loss=cur_loss/summary_step))
@@ -217,10 +221,8 @@ class vrnn():
         print(sentence)
         self.saver.restore(self.sess, tf.train.latest_checkpoint(self.model_dir))
 		
-        #new_saver = tf.train.import_meta_graph('./senti_model/sent_cls.ckpt.meta',clear_devices=True)
-        #new_saver.restore(self.sess, './senti_model/sent_cls.ckpt')
         while(sentence):
-            sentence = sys.stdin.readline()
+            sentence = sys.stdin.readline().lower()
             sys.stdout.flush()
             input_sent_vec = self.utils.sent2id(sentence)
             print(input_sent_vec)
