@@ -19,12 +19,13 @@ def parse():
     return args
 
 def run(args):
-    sess = tf.Session()
-    model = vrnn(args,sess)
-    if args.train:
-        model.train()
-    if args.stdin_test:
-        model.stdin_test()
+    with tf.device('/gpu:0'):
+        sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
+        model = vrnn(args,sess)
+        if args.train:
+            model.train()
+        if args.stdin_test:
+            model.stdin_test()
 
 if __name__ == '__main__':
     args = parse()

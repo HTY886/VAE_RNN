@@ -13,7 +13,7 @@ class vrnn():
     def __init__(self,args,sess):
         self.sess = sess
         self.word_embedding_dim = 300
-        self.num_epochs = 10000
+        self.num_epochs = 100
         self.num_steps = args.num_steps
         self.latent_dim = args.latent_dim
         self.sequence_length = args.sequence_length
@@ -101,7 +101,7 @@ class vrnn():
             sampled_encoder_state_h = mean + tf.multiply(var,noise)
             
                 
-        encoder_state = tf.contrib.rnn.LSTMStateTuple(c=encoder_state_c, h=encoder_state_h) 
+        encoder_state = tf.contrib.rnn.LSTMStateTuple(c=encoder_state_c, h=sampled_encoder_state_h) 
         encoder_state_test = tf.contrib.rnn.LSTMStateTuple(c=encoder_state_c, h=encoder_state_h)
         decoder_inputs = batch_to_time_major(train_decoder_sentence_embedded ,self.sequence_length+1)  
         
@@ -142,7 +142,7 @@ class vrnn():
             scope.reuse_variables()
             test_decoder_output,test_decoder_state = tf.contrib.legacy_seq2seq.attention_decoder(
                 decoder_inputs = decoder_inputs,
-                initial_state = encoder_state_test,
+                initial_state = encoder_state,
                 attention_states = encoder_outputs,
                 cell = cell,
                 output_size = self.vocab_size,
@@ -169,13 +169,16 @@ class vrnn():
             self.loss = tf.contrib.legacy_seq2seq.sequence_loss(
                 logits = train_decoder_output, 
                 targets = targets,
-                weights = loss_weights) #+ kl_loss
+                weights = loss_weights) + kl_loss
             #self.train_op = tf.train.RMSPropOptimizer(0.001).minimize(self.loss)
+            self.train_op = tf.train.AdamOptimizer().minimize(self.loss)
+            """
             op_func = tf.train.AdamOptimizer()
             tvars = tf.trainable_variables()
             self.gradient = tf.gradients(self.loss, tvars) 
-            capped_grads, _ = tf.clip_by_global_norm(self.gradient, 3)
+            capped_grads, _ = tf.clip_by_global_norm(self.gradient, 8)
             self.train_op = op_func.apply_gradients(zip(capped_grads, tvars))
+            """
             tf.summary.scalar('total_loss', self.loss)
     
     
