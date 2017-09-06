@@ -64,27 +64,35 @@ class utils():
 
     def train_data_generator(self,num_epos):
         for _ in range(num_epos):
-            f=open('/home_local/htsungy/corpus/open_subtitles.txt','r')
-            data=f.readlines()
+            f = open(os.path.join(self.data_dir,'source_train'),'r')
+            data = f.readlines()
             random.shuffle(data)
-            """
-            data_shuffled=[];
-            for i in range(len(data)):
-                if i%2 == 0 & i<500000:
-                    data_shuffled.append([data[i],data[i+1]])
-            random.shuffle(data_shuffled)
-            """
-            batch_s=[];batch_t=[];
-                    
+
+            batch_s = [];batch_t = [];                    
             for i in range(len(data)):
                 s_sent,s_l = self.sent2id(data[i],1)
                 t_sent,t_l = self.sent2id(data[i],1)
                 if s_l<=30 and t_l<=30 and random.random()<0.8:
                     batch_s.append(s_sent)
                     batch_t.append(t_sent)
-                    if len(batch_s)==self.batch_size:
+                    if len(batch_s)== self.batch_size:
                         yield batch_s,batch_t
-                        batch_s=[];batch_t=[];
+                        batch_s = [];batch_t = [];
+                        
+    def test_data_generator(self):
+        f = open(os.path.join(self.data_dir,'source_test'),'r')
+        data = f.readlines()
+
+        batch_s = [];batch_t = [];                    
+        for i in range(len(data)):
+            s_sent,s_l = self.sent2id(data[i],1)
+            t_sent,t_l = self.sent2id(data[i],1)
+            if s_l<=30 and t_l<=30 and random.random()<0.8:
+                batch_s.append(s_sent)
+                batch_t.append(t_sent)
+                if len(batch_s)== self.batch_size:
+                    yield batch_s,batch_t
+                    batch_s = [];batch_t = [];
 
 
                          

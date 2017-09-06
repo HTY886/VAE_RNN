@@ -15,6 +15,8 @@ def parse():
     parser.add_argument('-load','--load',action='store_true',help='whether load')
     parser.add_argument('-train',action='store_true',help='whether train')
     parser.add_argument('-stdin_test',action='store_true',help='whether stdin test')
+    parser.add_argument('-test',action='store_true',help='whether test')
+    parser.add_argument('-feed_previous',action='store_true',help='whether feed previous')
     args = parser.parse_args()
     return args
 
@@ -26,8 +28,9 @@ def run(args):
             model.train()
         if args.stdin_test:
             model.stdin_test()
+        if args.test:
+            model.test()
 
 if __name__ == '__main__':
     args = parse()
     run(args)
-
