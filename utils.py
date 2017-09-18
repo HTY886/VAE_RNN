@@ -13,12 +13,12 @@ class utils():
     def __init__(self,args):
         self.batch_size = args.batch_size
         self.data_dir = args.data_dir
+        self.dict_path = args.dict_path
+        self.word_embd_path = args.word_embd_path
         self.sequence_length = args.sequence_length
-        self.word_id_dict = read_json(os.path.join(self.data_dir,'word_id.json'))
-        self.unknown_id = len(self.word_id_dict)
-        self.word_id_dict['__UNK__'] = len(self.word_id_dict)
-        self.droptout_id = len(self.word_id_dict)
-        self.word_id_dict['__DROPOUT__'] = len(self.word_id_dict)
+        self.word_id_dict = read_json(args.dict_path)
+        self.unknown_id =  self.word_id_dict['__UNK__']
+        self.droptout_id = self.word_id_dict['__DROPOUT__']
         self.EOS_id = 0
         self.BOS_id = 1
 
@@ -27,14 +27,13 @@ class utils():
         for word in self.word_id_dict:
             self.id_word_dict[self.word_id_dict[word]] = word
 
-
     def word_drop_out(self,sents,rate=0.3):
         sents = np.array(sents)
         for i in range(len(sents)):
             for j in range(len(sents[i])):
                 if random.random()<=rate and sents[i][j]!=0:
                     sents[i][j] = self.word_id_dict['__DROPOUT__']
-        return sents 
+        return sents
 
 
     def sent2id(self,sent,l=None):
@@ -52,7 +51,7 @@ class utils():
         if l:
             return vec,sent_len
         else:
-            return vec  
+            return vec
 
 
     def id2sent(self,ids):
@@ -64,11 +63,11 @@ class utils():
 
     def train_data_generator(self,num_epos):
         for _ in range(num_epos):
-            f = open(os.path.join(self.data_dir,'source_train'),'r')
+            f = open(os.path.join(self.data_dir,'open_subtitles_train'),'r')
             data = f.readlines()
             random.shuffle(data)
 
-            batch_s = [];batch_t = [];                    
+            batch_s = [];batch_t = [];
             for i in range(len(data)):
                 s_sent,s_l = self.sent2id(data[i],1)
                 t_sent,t_l = self.sent2id(data[i],1)
@@ -78,12 +77,12 @@ class utils():
                     if len(batch_s)== self.batch_size:
                         yield batch_s,batch_t
                         batch_s = [];batch_t = [];
-                        
+
     def test_data_generator(self):
-        f = open(os.path.join(self.data_dir,'source_test'),'r')
+        f = open(os.path.join(self.data_dir,'open_subtitles_test'),'r')
         data = f.readlines()
 
-        batch_s = [];batch_t = [];                    
+        batch_s = [];batch_t = [];
         for i in range(len(data)):
             s_sent,s_l = self.sent2id(data[i],1)
             t_sent,t_l = self.sent2id(data[i],1)
@@ -94,5 +93,18 @@ class utils():
                     yield batch_s,batch_t
                     batch_s = [];batch_t = [];
 
+    def load_word_embedding(self):
+        embd = []
+        with open(self.word_embd_path,'r') as f:
+            for index, line in enumerate(f.readlines()):
+                row = line.strip().split(' ')
+                embd.append(row[1:])
+                if index == len(self.word_id_dict)-5:  #EOS BOS UNK DROPOUT
+                    print('SIZE: ' + str(index+1))
+                    break
+            print('Word Embedding Loaded')
+            embedding = np.asarray(embd,'f')
+            return embedding
 
-                         
+
+

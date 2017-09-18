@@ -26,6 +26,7 @@ class vrnn():
         self.lstm_length = [self.sequence_length+1]*self.batch_size
         self.utils = utils(args)
         self.vocab_size = len(self.utils.word_id_dict)
+        self.KL_annealing = args.KL_annealing
 
         self.EOS = 0
         self.BOS = 1
@@ -34,7 +35,7 @@ class vrnn():
         
         self.saver = tf.train.Saver(max_to_keep=2)
         self.model_path = os.path.join(self.model_dir,'model_{m_type}'.format(m_type='vrnn'))
- 
+
     def build_graph(self):
         print('starting building graph')
         
@@ -42,7 +43,8 @@ class vrnn():
             self.encoder_inputs = tf.placeholder(dtype=tf.int32, shape=(self.batch_size, self.sequence_length))
             self.train_decoder_sentence = tf.placeholder(dtype=tf.int32, shape=(self.batch_size, self.sequence_length))
             self.train_decoder_targets = tf.placeholder(dtype=tf.int32, shape=(self.batch_size, self.sequence_length))
-    
+            self.step = tf.placeholder(dtype=tf.float32, shape=())
+
             BOS_slice = tf.ones([self.batch_size, 1], dtype=tf.int32)*self.BOS
             EOS_slice = tf.ones([self.batch_size, 1], dtype=tf.int32)*self.EOS
             train_decoder_targets = tf.concat([self.train_decoder_targets,EOS_slice],axis=1)            
@@ -50,23 +52,38 @@ class vrnn():
           
     
         with tf.variable_scope("embedding") as scope:
+            self.embedding_placeholder = tf.placeholder(dtype=tf.float32, shape=(self.vocab_size-4,self.word_embedding_dim))
             init = tf.contrib.layers.xavier_initializer()
-    
-            # word embedding
-            word_embedding_matrix = tf.get_variable(
-                name="word_embedding_matrix",
-                shape=[self.vocab_size, self.word_embedding_dim],
+
+            pretrained_word_embd  = tf.get_variable(
+                name="pretrained_word_embd",
+                shape=[self.vocab_size-4, self.word_embedding_dim],
+                initializer = init,
+                trainable = False)
+            self.embd_init = pretrained_word_embd.assign(self.embedding_placeholder)
+
+            word_vector_EOS_BOS = tf.get_variable(
+                name="word_vector_EOS_BOS",
+                shape=[2, self.word_embedding_dim],
                 initializer = init,
                 trainable = True)
-                 
-            
-            # decoder output projection    
+
+            word_vector_UNK_DROPOUT = tf.get_variable(
+                name="word_vector_UNK_DROPOUT",
+                shape=[2, self.word_embedding_dim],
+                initializer = init,
+                trainable = True)
+
+            # word embedding
+            word_embedding_matrix = tf.concat([word_vector_EOS_BOS, pretrained_word_embd, word_vector_UNK_DROPOUT], 0)
+
+            # decoder output projection
             weight_output = tf.get_variable(
                 name="weight_output",
                 shape=[self.latent_dim*2, self.vocab_size],
                 initializer =  init,
                 trainable = True)
-                
+
             bias_output = tf.get_variable(
                 name="bias_output",
                 shape=[self.vocab_size],
@@ -164,14 +181,19 @@ class vrnn():
         
         
             kl_loss_batch = tf.reduce_sum( -0.5 * (logvar - tf.square(mean) - tf.exp(logvar) + 1.0) , 1)
-            self.kl_loss = kl_loss = tf.reduce_mean(kl_loss_batch, 0) #mean of kl_cost over batche
-            
+            kl_loss = tf.reduce_mean(kl_loss_batch, 0) #mean of kl_cost over batch
+            if(self.KL_annealing):
+                step_scale = tf.constant(5000, dtype=tf.float32)
+                kl_weight = tf.sigmoid(tf.divide(tf.subtract(self.step,step_scale),step_scale ))
+                kl_loss = tf.scalar_mul(kl_loss, kl_weight)
+            self.kl_loss = tf.scalar_mul(tf.constant(10, dtype= tf.float32),kl_loss)
+
             targets = batch_to_time_major(train_decoder_targets,self.sequence_length+1)
             loss_weights = [tf.ones([self.batch_size],dtype=tf.float32) for _ in range(self.sequence_length+1)]    #the weight at each time step
             self.loss = tf.contrib.legacy_seq2seq.sequence_loss(
                 logits = train_decoder_output, 
                 targets = targets,
-                weights = loss_weights) + kl_loss
+                weights = loss_weights) + self.kl_loss
             #self.train_op = tf.train.RMSPropOptimizer(0.001).minimize(self.loss)
             self.train_op = tf.train.AdamOptimizer(0.0001).minimize(self.loss)
             
@@ -196,15 +218,17 @@ class vrnn():
             self.saver.restore(self.sess, tf.train.latest_checkpoint(self.model_dir))
         else:
             self.sess.run(tf.global_variables_initializer())
+            self.sess.run(self.embd_init,{self.embedding_placeholder:self.utils.load_word_embedding()})
         step = 0
         
         for s,t in self.utils.train_data_generator(self.num_epochs):
             step += 1
-            t_d = t
+            t_d = self.utils.word_drop_out(t)
             feed_dict = {
                 self.encoder_inputs:s,\
                 self.train_decoder_sentence:t_d,\
-                self.train_decoder_targets:t
+                self.train_decoder_targets:t, \
+                self.step:step #KL weight
             }
             _,loss,kl_loss = self.sess.run([self.train_op, self.loss, self.kl_loss], feed_dict)
             cur_loss += loss
