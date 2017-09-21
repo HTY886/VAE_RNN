@@ -98,21 +98,21 @@ class vrnn():
         
         with tf.variable_scope("sample") as scope:
         
-            w_mean = weight_variable([self.latent_dim*2,self.latent_dim*2],0.001)
+            w_mean = weight_variable([self.latent_dim*2,self.latent_dim*2],0.5)
             b_mean = bias_variable([self.latent_dim*2])
             scope.reuse_variables()
             b_mean_matrix = [b_mean] * self.batch_size
             
-            w_logvar = weight_variable([self.latent_dim*2,self.latent_dim*2],0.001)
+            w_logvar = weight_variable([self.latent_dim*2,self.latent_dim*2],0.5)
             b_logvar = bias_variable([self.latent_dim*2])
             scope.reuse_variables()
             b_logvar_matrix = [b_logvar] * self.batch_size
             
             mean = tf.matmul(encoder_state_h,w_mean) + b_mean
             logvar = tf.matmul(encoder_state_h,w_logvar) + b_logvar
-            var = tf.exp( 0.5 * logvar)
-            noise = tf.random_normal(tf.shape(var))
-            sampled_encoder_state_h = mean + tf.multiply(var,noise)
+            stddev = tf.exp(0.5 * logvar)
+            noise = tf.random_normal(tf.shape(stddev))
+            sampled_encoder_state_h = mean + tf.multiply(stddev,noise)
             
                 
         encoder_state = tf.contrib.rnn.LSTMStateTuple(c=encoder_state_c, h=sampled_encoder_state_h) 
@@ -164,14 +164,17 @@ class vrnn():
         
         
             kl_loss_batch = tf.reduce_sum( -0.5 * (logvar - tf.square(mean) - tf.exp(logvar) + 1.0) , 1)
-            self.kl_loss = kl_loss = tf.reduce_mean(kl_loss_batch, 0) #mean of kl_cost over batche
-            
+            kl_loss = tf.reduce_mean(kl_loss_batch, 0) #mean of kl_cost over batche
+            #kl_loss = tf.scalar_mul(tf.constant(3.0, dtype=tf.float32), kl_loss)
+            self.kl_loss = kl_loss
+
             targets = batch_to_time_major(train_decoder_targets,self.sequence_length+1)
             loss_weights = [tf.ones([self.batch_size],dtype=tf.float32) for _ in range(self.sequence_length+1)]    #the weight at each time step
-            self.loss = tf.contrib.legacy_seq2seq.sequence_loss(
+            self.loss = tf.reduce_sum( tf.contrib.seq2seq.sequence_loss(
                 logits = train_decoder_output, 
                 targets = targets,
-                weights = loss_weights) + kl_loss
+                weights = loss_weights, 
+                average_across_timesteps=False ) ) + kl_loss
             #self.train_op = tf.train.RMSPropOptimizer(0.001).minimize(self.loss)
             self.train_op = tf.train.AdamOptimizer(0.0001).minimize(self.loss)
             

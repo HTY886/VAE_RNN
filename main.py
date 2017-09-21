@@ -10,7 +10,7 @@ def parse():
     parser.add_argument('-latent_dim','--latent_dim',default=500,type=int,help='laten size')
     parser.add_argument('-data_dir','--data_dir',default='data_dir',help='data dir')
     parser.add_argument('-saving_step','--saving_step',default=1000,type=int,help='saving step')
-    parser.add_argument('-num_steps','--num_steps',default=60000,type=int,help='number of steps')
+    parser.add_argument('-num_steps','--num_steps',default=10000,type=int,help='number of steps')
     parser.add_argument('-sequence_length','--sequence_length',default=30,type=int,help='sentence length')
     parser.add_argument('-load','--load',action='store_true',help='whether load')
     parser.add_argument('-train',action='store_true',help='whether train')

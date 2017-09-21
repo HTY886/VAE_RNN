@@ -64,7 +64,7 @@ class utils():
 
     def train_data_generator(self,num_epos):
         for _ in range(num_epos):
-            f = open(os.path.join(self.data_dir,'source_train'),'r')
+            f = open(os.path.join(self.data_dir,'open_subtitles_train'),'r')
             data = f.readlines()
             random.shuffle(data)
 
@@ -80,7 +80,7 @@ class utils():
                         batch_s = [];batch_t = [];
                         
     def test_data_generator(self):
-        f = open(os.path.join(self.data_dir,'source_test'),'r')
+        f = open(os.path.join(self.data_dir,'open_subtitles_test'),'r')
         data = f.readlines()
 
         batch_s = [];batch_t = [];                    
