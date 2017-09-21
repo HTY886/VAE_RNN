@@ -11,16 +11,17 @@ def read_json(filename):
 
 class utils():
     def __init__(self,args):
+
         self.batch_size = args.batch_size
         self.data_dir = args.data_dir
+        self.dict_path = args.dict_path
         self.sequence_length = args.sequence_length
         self.word_id_dict = read_json(args.dict_path)
-        self.unknown_id = len(self.word_id_dict)
-        self.word_id_dict['__UNK__'] = len(self.word_id_dict)
-        self.droptout_id = len(self.word_id_dict)
-        self.word_id_dict['__DROPOUT__'] = len(self.word_id_dict)
+        self.unknown_id =  self.word_id_dict['__UNK__']
+        self.droptout_id = self.word_id_dict['__DROPOUT__']
         self.EOS_id = 0
         self.BOS_id = 1
+
 
         self.id_word_dict = [[]]*len(self.word_id_dict)
         print(len(self.id_word_dict))

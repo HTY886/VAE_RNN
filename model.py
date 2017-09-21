@@ -170,11 +170,11 @@ class vrnn():
 
             targets = batch_to_time_major(train_decoder_targets,self.sequence_length+1)
             loss_weights = [tf.ones([self.batch_size],dtype=tf.float32) for _ in range(self.sequence_length+1)]    #the weight at each time step
-            self.loss = tf.reduce_sum( tf.contrib.seq2seq.sequence_loss(
+            self.loss = tf.reduce_sum(tf.contrib.legacy_seq2seq.sequence_loss(
                 logits = train_decoder_output, 
                 targets = targets,
                 weights = loss_weights, 
-                average_across_timesteps=False ) ) + kl_loss
+                average_across_timesteps=False )) + kl_loss
             #self.train_op = tf.train.RMSPropOptimizer(0.001).minimize(self.loss)
             self.train_op = tf.train.AdamOptimizer(0.0001).minimize(self.loss)
             

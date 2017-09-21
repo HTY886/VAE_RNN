@@ -6,6 +6,7 @@ def parse():
     parser = argparse.ArgumentParser(description="variational autoencoder")
     parser.add_argument('-model_dir','--model_dir',default='model_dir',help='output model dir')
     parser.add_argument('-model_path','--model_path',help='latest model path')
+    parser.add_argument('-dict_path','--dict_path',help='dictionary path')
     parser.add_argument('-batch_size','--batch_size',default=48,type=int,help='batch size')
     parser.add_argument('-latent_dim','--latent_dim',default=500,type=int,help='laten size')
     parser.add_argument('-data_dir','--data_dir',default='data_dir',help='data dir')
