@@ -14,7 +14,7 @@ class utils():
         self.batch_size = args.batch_size
         self.data_dir = args.data_dir
         self.sequence_length = args.sequence_length
-        self.word_id_dict = read_json(os.path.join(self.data_dir,'word_id.json'))
+        self.word_id_dict = read_json(args.dict_path)
         self.unknown_id = len(self.word_id_dict)
         self.word_id_dict['__UNK__'] = len(self.word_id_dict)
         self.droptout_id = len(self.word_id_dict)
