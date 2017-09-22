@@ -17,7 +17,7 @@ def parse():
     parser.add_argument('-stdin_test',action='store_true',help='whether stdin test')
     parser.add_argument('-test',action='store_true',help='whether test')
     parser.add_argument('-feed_previous',action='store_true',help='whether feed previous')
-    parser.add_argument('-KL_annealing',action='store_true',help='whether feed previous')
+    parser.add_argument('-KL_annealing',action='store_true',help='whether do KL_annealing')
 
     args = parser.parse_args()
     return args

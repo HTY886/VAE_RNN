@@ -41,8 +41,9 @@ class vrnn():
         with tf.variable_scope("input") as scope:
             self.encoder_inputs = tf.placeholder(dtype=tf.int32, shape=(self.batch_size, self.sequence_length))
             self.train_decoder_sentence = tf.placeholder(dtype=tf.int32, shape=(self.batch_size, self.sequence_length))
-            self.train_decoder_targets = tf.placeholder(dtype=tf.int32, shape=(self.batch_size, self.sequence_length))
-    
+            self.train_decoder_targets = tf.placeholder(dtype=tf.int32, shape=(self.batch_size, self.sequence_length)) 
+            self.step = tf.placeholder(dtype=tf.float32, shape=())
+
             BOS_slice = tf.ones([self.batch_size, 1], dtype=tf.int32)*self.BOS
             EOS_slice = tf.ones([self.batch_size, 1], dtype=tf.int32)*self.EOS
             train_decoder_targets = tf.concat([self.train_decoder_targets,EOS_slice],axis=1)            
@@ -211,7 +212,8 @@ class vrnn():
             feed_dict = {
                 self.encoder_inputs:s,\
                 self.train_decoder_sentence:t_d,\
-                self.train_decoder_targets:t
+                self.train_decoder_targets:t, \
+                self.step:step
             }
             _,loss,kl_loss = self.sess.run([self.train_op, self.loss, self.kl_loss], feed_dict)
             cur_loss += loss
