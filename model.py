@@ -207,7 +207,7 @@ class vrnn():
         
         for s,t in self.utils.train_data_generator(self.num_epochs):
             step += 1
-            t_d = t
+            t_d = self.utils.word_drop_out(t)
             feed_dict = {
                 self.encoder_inputs:s,\
                 self.train_decoder_sentence:t_d,\
