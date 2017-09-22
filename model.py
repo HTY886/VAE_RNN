@@ -115,12 +115,12 @@ class vrnn():
         
         with tf.variable_scope("sample") as scope:
         
-            w_mean = weight_variable([self.latent_dim*2,self.latent_dim*2],0.1)
+            w_mean = weight_variable([self.latent_dim*2,self.latent_dim*2],0.5)
             b_mean = bias_variable([self.latent_dim*2])
             scope.reuse_variables()
             b_mean_matrix = [b_mean] * self.batch_size
             
-            w_logvar = weight_variable([self.latent_dim*2,self.latent_dim*2],0.1)
+            w_logvar = weight_variable([self.latent_dim*2,self.latent_dim*2],0.5)
             b_logvar = bias_variable([self.latent_dim*2])
             scope.reuse_variables()
             b_logvar_matrix = [b_logvar] * self.batch_size
@@ -186,14 +186,15 @@ class vrnn():
                 step_scale = tf.constant(5000, dtype=tf.float32)
                 kl_weight = tf.sigmoid(tf.divide(tf.subtract(self.step,step_scale),step_scale ))
                 kl_loss = tf.scalar_mul(kl_loss, kl_weight)
-            self.kl_loss = tf.scalar_mul(tf.constant(10, dtype= tf.float32),kl_loss)
+            self.kl_loss = kl_loss
 
             targets = batch_to_time_major(train_decoder_targets,self.sequence_length+1)
             loss_weights = [tf.ones([self.batch_size],dtype=tf.float32) for _ in range(self.sequence_length+1)]    #the weight at each time step
-            self.loss = tf.contrib.legacy_seq2seq.sequence_loss(
+            self.loss = tf.reduce_sum(tf.contrib.legacy_seq2seq.sequence_loss(
                 logits = train_decoder_output, 
                 targets = targets,
-                weights = loss_weights) + self.kl_loss
+                weights = loss_weights,
+                average_across_timesteps = False )) + kl_loss
             #self.train_op = tf.train.RMSPropOptimizer(0.001).minimize(self.loss)
             self.train_op = tf.train.AdamOptimizer(0.0001).minimize(self.loss)
             
