@@ -183,7 +183,7 @@ class vrnn():
             kl_loss_batch = tf.reduce_sum( -0.5 * (logvar - tf.square(mean) - tf.exp(logvar) + 1.0) , 1)
             kl_loss = tf.reduce_mean(kl_loss_batch, 0) #mean of kl_cost over batch
             if(self.KL_annealing):
-                step_scale = tf.constant(5000, dtype=tf.float32)
+                step_scale = tf.constant(10000, dtype=tf.float32)
                 kl_weight = tf.sigmoid(tf.divide(tf.subtract(self.step,step_scale),step_scale ))
                 kl_loss = tf.scalar_mul(kl_loss, kl_weight)
             self.kl_loss = kl_loss
