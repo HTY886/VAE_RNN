@@ -26,7 +26,7 @@ class vrnn():
         self.lstm_length = [self.sequence_length+1]*self.batch_size
         self.utils = utils(args)
         self.vocab_size = len(self.utils.word_id_dict)
-
+        self.KL_annealing = args.KL_annealing
         self.EOS = 0
         self.BOS = 1
         self.log_dir = os.path.join(self.model_dir,'log/')
@@ -165,6 +165,10 @@ class vrnn():
         
             kl_loss_batch = tf.reduce_sum( -0.5 * (logvar - tf.square(mean) - tf.exp(logvar) + 1.0) , 1)
             kl_loss = tf.reduce_mean(kl_loss_batch, 0) #mean of kl_cost over batche
+            if(self.KL_annealing):
+                step_scale = tf.constant(5000, dtype=tf.float32)
+                kl_weight = tf.sigmoid(tf.divide(tf.subtract(self.step,step_scale),step_scale ))
+                kl_loss = tf.scalar_mul(kl_loss, kl_weight)
             #kl_loss = tf.scalar_mul(tf.constant(3.0, dtype=tf.float32), kl_loss)
             self.kl_loss = kl_loss
 
