@@ -115,12 +115,12 @@ class vrnn():
         
         with tf.variable_scope("sample") as scope:
         
-            w_mean = weight_variable([self.latent_dim*2,self.latent_dim*2],0.5)
+            w_mean = weight_variable([self.latent_dim*2,self.latent_dim*2],0.1)
             b_mean = bias_variable([self.latent_dim*2])
             scope.reuse_variables()
             b_mean_matrix = [b_mean] * self.batch_size
             
-            w_logvar = weight_variable([self.latent_dim*2,self.latent_dim*2],0.5)
+            w_logvar = weight_variable([self.latent_dim*2,self.latent_dim*2],0.1)
             b_logvar = bias_variable([self.latent_dim*2])
             scope.reuse_variables()
             b_logvar_matrix = [b_logvar] * self.batch_size
