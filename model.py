@@ -123,32 +123,36 @@ class vrnn():
         
             cell = tf.contrib.rnn.LSTMCell(num_units=self.latent_dim*2, state_is_tuple=True)
             self.cell = cell
-                
-            #the decoder of training
-            train_decoder_output,train_decoder_state = tf.contrib.legacy_seq2seq.embedding_rnn_decoder(
-                decoder_inputs = decoder_inputs,
-                initial_state = encoder_state,
-                cell = cell,
-                num_symbols = self.vocab_size,
-                embedding_size = self.word_embedding_dim,
-                output_projection = (weight_output, bias_output),
-                feed_previous = self.feed_previous,
-                scope = scope
+
+            sequence_length = tf.constant([self.batch_size]*self.sequence_length,dtype=tf.int32) 
+
+            helper = tf.contrib.seq2seq.ScheduledEmbeddingTrainingHelper(
+                inputs = decoder_inputs,
+                sequence_length = sequence_length,
+                embedding = weight_output,
+                sampling_probability = 0,
+                time_major = True
             )
-            
-            #the decoder of testing
-            scope.reuse_variables()
-            test_decoder_output,test_decoder_state = tf.contrib.legacy_seq2seq.embedding_rnn_decoder(
-                decoder_inputs = decoder_inputs,
-                initial_state = encoder_state,
+            decoder = tf.contrib.seq2seq.BasicDecoder(
                 cell = cell,
-                num_symbols = self.vocab_size,
-                embedding_size = self.word_embedding_dim,
-                output_projection = (weight_output, bias_output),
-                feed_previous = self.feed_previous,
-                scope = scope
-            )   
-            
+                helper = helper,
+                initial_state = encoder_state
+            )
+            train_decoder_output, _ ,_ = tf.contrib.seq2seq.dynamic_decode(
+                decoder = decoder,
+                output_time_major = True,
+                impute_finished = True,
+                maximum_iterations = self.sequence_length+1
+            )
+
+            test_decoder_output, _ , _ = tf.contrib.seq2seq.dynamic_decode(
+                decoder = decoder,
+                output_time_major = True,
+                impute_finished = True,
+                maximum_iterations = self.sequence_length+1
+            )
+
+            print(test_decoder_output)
             for index,time_slice in enumerate(test_decoder_output):
                 test_decoder_output[index] = tf.add(tf.matmul(test_decoder_output[index],weight_output),bias_output)
                 train_decoder_output[index] = tf.add(tf.matmul(train_decoder_output[index],weight_output),bias_output)
