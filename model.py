@@ -75,7 +75,7 @@ class vrnn():
                 trainable = True)
     
             encoder_inputs_embedded = tf.nn.embedding_lookup(word_embedding_matrix, self.encoder_inputs)
-    
+            train_decoder_sentence_embedded = tf.nn.embedding_lookup(word_embedding_matrix, train_decoder_sentence) 
         with tf.variable_scope("encoder") as scope:
             cell_fw = tf.contrib.rnn.LSTMCell(num_units=self.latent_dim, state_is_tuple=True)
             cell_bw = tf.contrib.rnn.LSTMCell(num_units=self.latent_dim, state_is_tuple=True)
@@ -117,17 +117,22 @@ class vrnn():
             
                 
         encoder_state = tf.contrib.rnn.LSTMStateTuple(c=encoder_state_c, h=sampled_encoder_state_h) 
-        decoder_inputs = batch_to_time_major(train_decoder_sentence, self.sequence_length+1)  
+        decoder_inputs = batch_to_time_major(train_decoder_sentence_embedded, self.sequence_length+1)  
         
         with tf.variable_scope("decoder") as scope:
         
+            r_num = tf.reduce_sum(tf.random_uniform([1], seed=1))
             cell = tf.contrib.rnn.LSTMCell(num_units=self.latent_dim*2, state_is_tuple=True)
             self.cell = cell
 
             def loop(prev,i):  
                 prev = tf.add(tf.matmul(prev,weight_output),bias_output)
                 prev_index = tf.argmax(prev, axis=-1) 
-                return prev_index
+                pred_prev = tf.nn.embedding_lookup(word_embedding_matrix,prev_index)
+                next_input = tf.cond(r_num > 0.9,\
+                                lambda: pred_prev,\
+                                lambda: decoder_inputs[i] ) #r>rate do first, else second
+                return next_input
 
             train_decoder_output,train_decoder_state = tf.contrib.legacy_seq2seq.rnn_decoder(
                 decoder_inputs = decoder_inputs,
