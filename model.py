@@ -124,38 +124,28 @@ class vrnn():
             cell = tf.contrib.rnn.LSTMCell(num_units=self.latent_dim*2, state_is_tuple=True)
             self.cell = cell
 
-            sequence_length = tf.constant([self.batch_size]*self.sequence_length,dtype=tf.int32) 
+            def loop(prev,i):  
+                prev = tf.add(tf.matmul(prev,weight_output),bias_output)
+                prev_index = tf.argmax(prev, axis=-1) 
+                return prev_index
 
-            helper = tf.contrib.seq2seq.ScheduledEmbeddingTrainingHelper(
-                inputs = decoder_inputs,
-                sequence_length = sequence_length,
-                embedding = weight_output,
-                sampling_probability = 0,
-                time_major = True
-            )
-            decoder = tf.contrib.seq2seq.BasicDecoder(
+            train_decoder_output,train_decoder_state = tf.contrib.legacy_seq2seq.rnn_decoder(
+                decoder_inputs = decoder_inputs,
+                initial_state = encoder_state,
                 cell = cell,
-                helper = helper,
-                initial_state = encoder_state
-            )
-            train_decoder_output, _ ,_ = tf.contrib.seq2seq.dynamic_decode(
-                decoder = decoder,
-                output_time_major = True,
-                impute_finished = True,
-                maximum_iterations = self.sequence_length+1
-            )
-
-            test_decoder_output, _ , _ = tf.contrib.seq2seq.dynamic_decode(
-                decoder = decoder,
-                output_time_major = True,
-                impute_finished = True,
-                maximum_iterations = self.sequence_length+1
-            )
-
-            print(test_decoder_output)
-            for index,time_slice in enumerate(test_decoder_output):
-                test_decoder_output[index] = tf.add(tf.matmul(test_decoder_output[index],weight_output),bias_output)
-                train_decoder_output[index] = tf.add(tf.matmul(train_decoder_output[index],weight_output),bias_output)
+                loop_function = loop,
+                scope = scope
+            )   
+            
+            #the decoder of testing
+            scope.reuse_variables()
+            test_decoder_output,test_decoder_state = tf.contrib.legacy_seq2seq.rnn_decoder(
+                decoder_inputs = decoder_inputs,
+                initial_state = encoder_state,
+                cell = cell,
+                loop_function = loop,
+                scope = scope
+            )   
            
             test_decoder_logits = tf.stack(test_decoder_output, axis=1)
             test_pred = tf.argmax(test_decoder_logits,axis=-1)
