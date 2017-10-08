@@ -125,20 +125,29 @@ class vrnn():
             cell = tf.contrib.rnn.LSTMCell(num_units=self.latent_dim*2, state_is_tuple=True)
             self.cell = cell
 
-            def loop(prev,i):  
-                prev = tf.add(tf.matmul(prev,weight_output),bias_output)
-                prev_index = tf.argmax(prev, axis=-1) 
-                pred_prev = tf.nn.embedding_lookup(word_embedding_matrix,prev_index)
-                next_input = tf.cond(r_num > 0.9,\
+            def train_decoder_loop(prev,i):  
+                factor = tf.constant(5,shape=(),dtype=tf.float32)
+                prev = tf.scalar_mul(factor,tf.add(tf.matmul(prev,weight_output),bias_output))
+                prev_index = tf.nn.softmax(prev) 
+                pred_prev = tf.matmul(prev_index,word_embedding_matrix)
+                next_input = tf.cond(r_num > 0.6,\
                                 lambda: pred_prev,\
                                 lambda: decoder_inputs[i] ) #r>rate do first, else second
+                return next_input
+
+            def test_decoder_loop(prev,i):
+                factor = tf.constant(5,shape=(),dtype=tf.float32)
+                prev = tf.scalar_mul(factor,tf.add(tf.matmul(prev,weight_output),bias_output))
+                prev_index = tf.nn.softmax(prev) 
+                pred_prev = tf.matmul(prev_index,word_embedding_matrix)
+                next_input = pred_prev
                 return next_input
 
             train_decoder_output,train_decoder_state = tf.contrib.legacy_seq2seq.rnn_decoder(
                 decoder_inputs = decoder_inputs,
                 initial_state = encoder_state,
                 cell = cell,
-                loop_function = loop,
+                loop_function = train_decoder_loop,
                 scope = scope
             )   
             
@@ -148,10 +157,16 @@ class vrnn():
                 decoder_inputs = decoder_inputs,
                 initial_state = encoder_state,
                 cell = cell,
-                loop_function = loop,
+                loop_function = test_decoder_loop,
                 scope = scope
-            )   
+            )
+
+            for index,time_slice in enumerate(test_decoder_output):
+                test_decoder_output[index] = tf.add(tf.matmul(test_decoder_output[index],weight_output),bias_output)
+                train_decoder_output[index] = tf.add(tf.matmul(train_decoder_output[index],weight_output),bias_output)
            
+        
+            
             test_decoder_logits = tf.stack(test_decoder_output, axis=1)
             test_pred = tf.argmax(test_decoder_logits,axis=-1)
             test_pred = tf.to_int32(test_pred,name='ToInt32')
@@ -164,7 +179,7 @@ class vrnn():
         
         
             kl_loss_batch = tf.reduce_sum( -0.5 * (logvar - tf.square(mean) - tf.exp(logvar) + 1.0) , 1)
-            kl_loss =tf.scalar_mul(10.0, tf.reduce_mean(kl_loss_batch, 0)) #mean of kl_cost over batche
+            kl_loss = tf.reduce_mean(kl_loss_batch, 0) #mean of kl_cost over batche
             if(self.KL_annealing):
                 step_scale = tf.constant(5000, dtype=tf.float32)
                 kl_weight = tf.sigmoid(tf.divide(tf.subtract(self.step,step_scale),step_scale ))
